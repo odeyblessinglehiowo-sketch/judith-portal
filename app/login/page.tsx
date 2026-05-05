@@ -69,7 +69,7 @@ export default function LoginPage() {
           <img src="/judith2027.png" className="w-40 mx-auto mb-4" />
 
           <h2 className="text-lg font-semibold text-gray-700 mb-4">
-            Agent Login
+            Ward Agent Login
           </h2>
 
           {/* EMAIL */}
