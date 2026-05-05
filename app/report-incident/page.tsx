@@ -49,8 +49,8 @@ export default function ReportIncident() {
     console.error("Cloudinary error:", data)
     throw new Error("Upload failed")
   }
-if (file.size > 50 * 1024 * 1024) {
-  alert("Video too large. Please upload under 50MB.")
+if (file.size > 20 * 1024 * 1024) {
+  toast.error("Video must be less than 20MB")
   return
 }
   return data.secure_url
