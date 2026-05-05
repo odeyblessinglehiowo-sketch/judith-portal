@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { users } from "@/lib/auth"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     if (!email || !password) {
       alert("Enter email and password")
       return
@@ -19,18 +19,20 @@ export default function LoginPage() {
 
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const user = users.find(
+      (u) => u.email === email && u.password === password
+    )
 
-    setLoading(false)
-
-    if (error) {
-      alert(error.message)
+    if (!user) {
+      alert("Invalid login credentials")
+      setLoading(false)
       return
     }
 
+    // save user to localStorage
+    localStorage.setItem("user", JSON.stringify(user))
+
+    setLoading(false)
     router.push("/dashboard")
   }
 
@@ -38,22 +40,20 @@ export default function LoginPage() {
     <div className="relative min-h-screen bg-white overflow-hidden flex items-center justify-center">
 
       {/* BACKGROUND */}
-      {/* TOP BACKGROUND */}
-    <div
-  className="
-    absolute top-0 left-0 w-full 
-    h-[55%] 
-    bg-no-repeat 
-    bg-center 
-    bg-cover 
-    opacity-20
-
-    md:h-[45%]
-    md:bg-contain
-    md:bg-[center_top_40px]
-  "
-  style={{ backgroundImage: "url('/bg.png')" }}
-/>
+      <div
+        className="
+          absolute top-0 left-0 w-full 
+          h-[55%] 
+          bg-no-repeat 
+          bg-center 
+          bg-cover 
+          opacity-20
+          md:h-[45%]
+          md:bg-contain
+          md:bg-[center_top_40px]
+        "
+        style={{ backgroundImage: "url('/bg.png')" }}
+      />
 
       {/* WHITE CURVE */}
       <div className="absolute top-[45%] left-0 w-full h-[60%] bg-white rounded-t-[60px]" />
