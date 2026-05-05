@@ -32,7 +32,7 @@ export default function ReportIncident() {
   formData.append("upload_preset", "judith_upload")
 
   const res = await fetch(
-    "https://api.cloudinary.com/v1_1/dz85nxxmg/auto/upload",
+    "https://api.cloudinary.com/v1_1/dz85nxxmg/upload",
     {
       method: "POST",
       body: formData,
