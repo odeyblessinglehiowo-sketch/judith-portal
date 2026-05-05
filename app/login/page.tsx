@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { users } from "@/lib/auth"
-
+import toast from "react-hot-toast"
 export default function LoginPage() {
   const router = useRouter()
 
@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   const handleLogin = () => {
     if (!email || !password) {
-      alert("Enter email and password")
+     toast.error("Enter email and password")
       return
     }
 

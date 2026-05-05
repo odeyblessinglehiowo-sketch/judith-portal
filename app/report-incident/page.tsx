@@ -3,6 +3,7 @@
 import { supabase } from "@/lib/supabase"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import toast from "react-hot-toast"
 
 export default function ReportIncident() {
   const router = useRouter()
@@ -31,13 +32,16 @@ export default function ReportIncident() {
   formData.append("file", file)
   formData.append("upload_preset", "judith_upload")
 
-  const res = await fetch(
-    "https://api.cloudinary.com/v1_1/dz85nxxmg/upload",
-    {
-      method: "POST",
-      body: formData,
-    }
-  )
+  const isVideo = file.type.startsWith("video")
+
+  const url = isVideo
+    ? "https://api.cloudinary.com/v1_1/dz85nxxmg/video/upload"
+    : "https://api.cloudinary.com/v1_1/dz85nxxmg/upload"
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+  })
 
   const data = await res.json()
 
@@ -45,7 +49,10 @@ export default function ReportIncident() {
     console.error("Cloudinary error:", data)
     throw new Error("Upload failed")
   }
-
+if (file.size > 50 * 1024 * 1024) {
+  alert("Video too large. Please upload under 50MB.")
+  return
+}
   return data.secure_url
 }
 
@@ -93,7 +100,7 @@ export default function ReportIncident() {
 
     } catch (err) {
       console.error(err)
-      alert("Upload failed")
+      toast.error("Upload failed")
     }
 
     setLoading(false)
