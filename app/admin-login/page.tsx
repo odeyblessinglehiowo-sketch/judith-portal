@@ -11,31 +11,52 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
- const handleLogin = async () => {
-  setLoading(true)
+  const handleLogin = async () => {
+    // ✅ Basic validation
+    if (!email.trim() || !password.trim()) {
+      alert("Please enter email and password")
+      return
+    }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+    setLoading(true)
 
-  setLoading(false)
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      })
 
-  console.log("LOGIN RESPONSE:", { data, error })
+      console.log("LOGIN RESPONSE:", { data, error })
 
-  if (error) {
-    alert(error.message) // 👈 show real error
-    return
+      if (error) {
+        alert(error.message)
+        setLoading(false)
+        return
+      }
+
+      // ✅ extra safety check
+      if (!data.user) {
+        alert("Login failed")
+        setLoading(false)
+        return
+      }
+
+      router.push("/admin")
+
+    } catch (err) {
+      console.error(err)
+      alert("Something went wrong")
+    }
+
+    setLoading(false)
   }
 
-  router.push("/admin")
-}
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#f5f7f6] overflow-hidden">
 
       {/* BACKGROUND */}
       <div
-        className="absolute top-0 left-0 w-full h-[60%] bg-no-repeat bg-center opacity-10 bg-cover"
+        className="absolute top-0 left-0 w-full h-[60%] bg-no-repeat bg-center bg-cover opacity-10 pointer-events-none"
         style={{ backgroundImage: "url('/bg.png')" }}
       />
 
@@ -60,7 +81,7 @@ export default function AdminLogin() {
               onChange={(e) => setEmail(e.target.value)}
               className="
                 w-full p-3 rounded-lg border border-gray-300 
-                bg-white text-gray-800
+                bg-white text-gray-800 placeholder-gray-400
                 focus:outline-none focus:ring-2 focus:ring-[#2DBE6C]
               "
             />
@@ -78,7 +99,7 @@ export default function AdminLogin() {
               onChange={(e) => setPassword(e.target.value)}
               className="
                 w-full p-3 rounded-lg border border-gray-300 
-                bg-white text-gray-800
+                bg-white text-gray-800 placeholder-gray-400
                 focus:outline-none focus:ring-2 focus:ring-[#2DBE6C]
               "
             />
