@@ -32,6 +32,14 @@ export default function ReportIncident() {
   }, [router])
 
   const openUploadWidget = () => {
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+
+    if (!cloudName || !uploadPreset) {
+      toast.error("Cloudinary is not configured")
+      return
+    }
+
     if (!window.cloudinary) {
       toast.error("Upload widget is still loading")
       return
@@ -39,22 +47,37 @@ export default function ReportIncident() {
 
     const widget = window.cloudinary.createUploadWidget(
       {
-        cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-        uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+        cloudName,
+        uploadPreset,
         multiple: true,
         resourceType: "auto",
         folder: "reports",
-        maxFileSize: 50000000,
+        maxFileSize: 100000000,
+        clientAllowedFormats: [
+          "jpg",
+          "jpeg",
+          "png",
+          "mp4",
+          "mov",
+          "mp3",
+          "wav",
+          "m4a",
+        ],
       },
       (error: any, result: any) => {
         if (error) {
-          console.log(error)
+          console.error(error)
           toast.error("Upload failed")
           return
         }
 
         if (result?.event === "success") {
-          setUploadedFiles((prev) => [...prev, result.info.secure_url])
+          const url = result.info.secure_url
+
+          setUploadedFiles((prev) =>
+            prev.includes(url) ? prev : [...prev, url]
+          )
+
           toast.success("File uploaded")
         }
       }
@@ -74,8 +97,8 @@ export default function ReportIncident() {
       return
     }
 
-    if (!user) {
-      toast.error("No user found")
+    if (!user?.email) {
+      toast.error("User not found")
       return
     }
 
@@ -93,9 +116,8 @@ export default function ReportIncident() {
       ])
 
       if (error) {
-        console.log(error)
+        console.error(error)
         toast.error("Failed to submit")
-        setLoading(false)
         return
       }
 
@@ -104,11 +126,11 @@ export default function ReportIncident() {
       setComment("")
       setActiveType("video")
     } catch (err) {
-      console.log(err)
+      console.error(err)
       toast.error("Something went wrong")
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   if (!user) return null
@@ -126,6 +148,7 @@ export default function ReportIncident() {
           <img
             src={user?.image || "/default-avatar.png"}
             className="w-16 h-16 rounded-full border-4 border-white shadow-lg absolute -top-4 left-5 object-cover"
+            alt="Agent"
           />
 
           <div className="bg-[#0087C8] text-white rounded-xl pt-10 pb-4 px-4 shadow-md">
@@ -149,7 +172,6 @@ export default function ReportIncident() {
             <div className="bg-[#2DBE6C] text-white py-3 font-semibold text-center rounded-r-lg">
               Report Incident
             </div>
-
             <div className="absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[10px] border-transparent border-t-[#2DBE6C]" />
           </div>
         </div>
@@ -196,11 +218,7 @@ export default function ReportIncident() {
           )}
 
           <textarea
-            placeholder={
-              activeType === "text"
-                ? "Write your report..."
-                : "Add incident report..."
-            }
+            placeholder={activeType === "text" ? "Write your report..." : "Add incident report..."}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             className="w-full mt-4 p-4 bg-[#dbe7f3] rounded-lg min-h-[140px] outline-none"
@@ -216,7 +234,7 @@ export default function ReportIncident() {
         </div>
 
         <div className="flex justify-center mt-10 pb-6">
-          <img src="/logo.png" className="w-28" />
+          <img src="/logo.png" className="w-28" alt="Judified logo" />
         </div>
       </div>
     </div>
