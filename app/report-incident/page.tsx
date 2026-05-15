@@ -1,20 +1,25 @@
 "use client"
 
 import { supabase } from "@/lib/supabase"
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
+
+declare global {
+  interface Window {
+    cloudinary: any
+  }
+}
 
 export default function ReportIncident() {
   const router = useRouter()
 
   const [user, setUser] = useState<any>(null)
   const [activeType, setActiveType] = useState("video")
-  const [files, setFiles] = useState<File[]>([])
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
   const [comment, setComment] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // ✅ Get logged in user
   useEffect(() => {
     const storedUser = localStorage.getItem("user")
 
@@ -24,83 +29,83 @@ export default function ReportIncident() {
     }
 
     setUser(JSON.parse(storedUser))
-  }, [])
+  }, [router])
 
-  // ✅ CLOUDINARY UPLOAD FUNCTION (FIXED)
-  const uploadToCloudinary = async (file: File) => {
-  const formData = new FormData()
-  formData.append("file", file)
-  formData.append("upload_preset", "judith_upload")
+  const openUploadWidget = () => {
+    if (!window.cloudinary) {
+      toast.error("Upload widget is still loading")
+      return
+    }
 
-  const isVideo = file.type.startsWith("video")
+    const widget = window.cloudinary.createUploadWidget(
+      {
+        cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+        uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+        multiple: true,
+        resourceType: "auto",
+        folder: "reports",
+        maxFileSize: 50000000,
+      },
+      (error: any, result: any) => {
+        if (error) {
+          console.log(error)
+          toast.error("Upload failed")
+          return
+        }
 
-  const url = isVideo
-    ? "https://api.cloudinary.com/v1_1/dz85nxxmg/video/upload"
-    : "https://api.cloudinary.com/v1_1/dz85nxxmg/upload"
+        if (result?.event === "success") {
+          setUploadedFiles((prev) => [...prev, result.info.secure_url])
+          toast.success("File uploaded")
+        }
+      }
+    )
 
-  const res = await fetch(url, {
-    method: "POST",
-    body: formData,
-  })
-
-  const data = await res.json()
-
-  if (!data.secure_url) {
-    console.error("Cloudinary error:", data)
-    throw new Error("Upload failed")
+    widget.open()
   }
-if (file.size > 20 * 1024 * 1024) {
-  toast.error("Video must be less than 20MB")
-  return
-}
-  return data.secure_url
-}
 
-  // ✅ HANDLE SUBMIT (FIXED PROPERLY)
   const handleSubmit = async () => {
-    if (files.length === 0 && activeType !== "text") {
-      alert("Please upload something")
+    if (activeType !== "text" && uploadedFiles.length === 0) {
+      toast.error("Upload file first")
+      return
+    }
+
+    if (!comment.trim()) {
+      toast.error("Add a comment")
+      return
+    }
+
+    if (!user) {
+      toast.error("No user found")
       return
     }
 
     setLoading(true)
 
     try {
-      let fileUrls: string[] = []
-
-      // 🔥 Upload all files
-      if (activeType !== "text") {
-        fileUrls = await Promise.all(
-          files.map((file) => uploadToCloudinary(file))
-        )
-      }
-
-      // 🔥 Save to Supabase
       const { error } = await supabase.from("reports").insert([
         {
           user_email: user.email,
           type: activeType,
-          comment,
-          files: fileUrls,
+          comment: comment.trim(),
+          files: activeType === "text" ? [] : uploadedFiles,
           status: "pending",
         },
       ])
 
       if (error) {
-        console.error(error)
-        alert("Failed to save report")
+        console.log(error)
+        toast.error("Failed to submit")
+        setLoading(false)
         return
       }
 
-      alert("Report submitted successfully 🎉")
-
-      // reset
-      setFiles([])
+      toast.success("Report submitted successfully 🎉")
+      setUploadedFiles([])
       setComment("")
-
+      setActiveType("video")
     } catch (err) {
-      console.error(err)
-      toast.error("Upload failed")
+      console.log(err)
+      toast.error("Something went wrong")
     }
 
     setLoading(false)
@@ -110,22 +115,17 @@ if (file.size > 20 * 1024 * 1024) {
 
   return (
     <div className="relative min-h-screen bg-[#f5f7f6] overflow-hidden">
-
-      {/* BACKGROUND */}
       <div
-        className="absolute top-0 left-0 w-full h-[60%] bg-no-repeat bg-center opacity-15"
+        className="absolute top-0 left-0 w-full h-[60%] bg-no-repeat bg-center opacity-15 pointer-events-none"
         style={{ backgroundImage: "url('/bg.png')" }}
       />
-
       <div className="absolute bottom-0 w-full h-[40%] bg-[#f5f7f6] rounded-t-[50px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto w-full">
-
-        {/* HEADER */}
         <div className="px-5 pt-6 relative">
           <img
             src={user?.image || "/default-avatar.png"}
-            className="w-16 h-16 rounded-full border-4 border-white shadow-lg absolute -top-4 left-5"
+            className="w-16 h-16 rounded-full border-4 border-white shadow-lg absolute -top-4 left-5 object-cover"
           />
 
           <div className="bg-[#0087C8] text-white rounded-xl pt-10 pb-4 px-4 shadow-md">
@@ -137,7 +137,6 @@ if (file.size > 20 * 1024 * 1024) {
           </div>
         </div>
 
-        {/* TABS */}
         <div className="grid grid-cols-2 mt-6 px-5">
           <button
             onClick={() => router.push("/upload-results")}
@@ -155,68 +154,67 @@ if (file.size > 20 * 1024 * 1024) {
           </div>
         </div>
 
-        {/* TYPE SELECTOR */}
         <div className="mx-6 mt-6 rounded-lg overflow-hidden shadow">
           {["video", "image", "audio", "text"].map((type) => (
             <button
               key={type}
               onClick={() => setActiveType(type)}
-              className={`w-full py-3 ${
+              className={`w-full py-3 text-sm font-medium ${
                 activeType === type
                   ? "bg-[#E03A3E] text-white"
-                  : "bg-[#dbe7f3]"
+                  : "bg-[#dbe7f3] text-gray-700"
               }`}
             >
-              {type === "text"
-                ? "Write Report"
-                : `Upload ${type}`}
+              {type === "text" ? "Write Report" : `Upload ${type}`}
             </button>
           ))}
         </div>
 
-        {/* UPLOAD */}
         <div className="px-6 mt-6">
-          {activeType !== "text" ? (
-            <input
-              type="file"
-              multiple
-              onChange={(e) =>
-                setFiles(Array.from(e.target.files || []))
-              }
-              className="w-full bg-[#dbe7f3] p-4 rounded-lg"
-            />
-          ) : (
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="w-full p-4 bg-[#dbe7f3] rounded-lg"
-            />
-          )}
+          {activeType !== "text" && (
+            <>
+              <button
+                onClick={openUploadWidget}
+                className="w-full bg-[#0087C8] text-white py-4 rounded-lg font-semibold"
+              >
+                Upload Files
+              </button>
 
-          {files.length > 0 && (
-            <div className="mt-4">
-              {files.map((f, i) => (
-                <p key={i}>{f.name}</p>
-              ))}
-            </div>
+              {uploadedFiles.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {uploadedFiles.map((file, i) => (
+                    <div
+                      key={i}
+                      className="bg-white p-3 rounded-lg text-sm break-all shadow"
+                    >
+                      {file}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           <textarea
-            placeholder="Add a comment..."
+            placeholder={
+              activeType === "text"
+                ? "Write your report..."
+                : "Add incident report..."
+            }
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full mt-4 p-4 bg-[#dbe7f3] rounded-lg"
+            className="w-full mt-4 p-4 bg-[#dbe7f3] rounded-lg min-h-[140px] outline-none"
           />
 
           <button
             onClick={handleSubmit}
-            className="w-full mt-6 bg-[#0087C8] text-white py-3 rounded-lg"
+            disabled={loading}
+            className="w-full mt-6 bg-[#2DBE6C] text-white py-4 rounded-lg font-semibold disabled:opacity-60"
           >
             {loading ? "Submitting..." : "Submit Report"}
           </button>
         </div>
 
-        {/* FOOTER */}
         <div className="flex justify-center mt-10 pb-6">
           <img src="/logo.png" className="w-28" />
         </div>
