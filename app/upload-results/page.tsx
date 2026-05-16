@@ -1,14 +1,24 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
 
+type Profile = {
+  id: string
+  email: string
+  name: string
+  constituency: string
+  lga: string
+  image: string | null
+  role: string
+}
+
 export default function UploadResults() {
   const router = useRouter()
 
-  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [results, setResults] = useState({
@@ -17,23 +27,41 @@ export default function UploadResults() {
     okpolupm: "",
   })
 
-  // ✅ AUTH CHECK
   useEffect(() => {
-    const storedUser = localStorage.getItem("user")
+    const loadProfile = async () => {
+      const { data: authData, error: authError } = await supabase.auth.getUser()
 
-    if (!storedUser) {
-      router.push("/login")
+      if (authError || !authData.user) {
+        router.push("/login")
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (error || !data) {
+        toast.error("Profile not found")
+        router.push("/login")
+        return
+      }
+
+      setProfile(data as Profile)
+    }
+
+    loadProfile()
+  }, [router])
+
+  const handleSubmit = async () => {
+    if (!results.judith || !results.eunice || !results.okpolupm) {
+      toast.error("Please fill all fields")
       return
     }
 
-    setUser(JSON.parse(storedUser))
-  }, [])
-
-  // ✅ SUBMIT (NOW CONNECTED TO SUPABASE)
-  const handleSubmit = async () => {
-    // Validation
-    if (!results.judith || !results.eunice || !results.okpolupm) {
-      alert("Please fill all fields")
+    if (!profile?.email) {
+      toast.error("User not found")
       return
     }
 
@@ -42,23 +70,23 @@ export default function UploadResults() {
     try {
       const { error } = await supabase.from("reports").insert([
         {
-          user_email: user.email,
+          user_email: profile.email,
+          type: "result",
           judith: Number(results.judith),
           eunice: Number(results.eunice),
           okpolupm: Number(results.okpolupm),
+          status: "pending",
         },
       ])
 
       if (error) {
         console.error(error)
-        alert("Failed to submit results")
-        setLoading(false)
+        toast.error("Failed to submit results")
         return
       }
 
-      alert("Results submitted successfully 🎉")
+      toast.success("Results submitted successfully 🎉")
 
-      // Reset form
       setResults({
         judith: "",
         eunice: "",
@@ -66,21 +94,18 @@ export default function UploadResults() {
       })
 
       router.push("/dashboard")
-
     } catch (err) {
       console.error(err)
-      alert("Something went wrong")
+      toast.error("Something went wrong")
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
-  if (!user) return null
+  if (!profile) return null
 
   return (
     <div className="relative min-h-screen bg-[#f5f7f6] overflow-hidden">
-
-      {/* BACKGROUND (60%) */}
       <div
         className="
           absolute top-0 left-0 w-full h-[60%]
@@ -91,41 +116,35 @@ export default function UploadResults() {
         style={{ backgroundImage: "url('/bg.png')" }}
       />
 
-      {/* WHITE CURVE */}
       <div className="absolute bottom-0 w-full h-[40%] bg-[#f5f7f6] rounded-t-[50px]" />
 
       <div className="relative z-10 max-w-5xl mx-auto w-full">
-
-        {/* HEADER */}
         <div className="px-5 pt-6 relative">
-
-          <img
-            src={user?.image || "/default-avatar.png"}
-            className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg absolute -top-4 left-5"
-          />
+          {profile.image ? (
+            <img
+              src={profile.image}
+              className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-lg absolute -top-4 left-5"
+              alt="Agent"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-gray-200 border-4 border-white shadow-lg absolute -top-4 left-5" />
+          )}
 
           <div className="bg-[#0087C8] text-white rounded-xl pt-10 pb-4 px-4 shadow-md">
             <p className="text-sm">Welcome</p>
-            <h2 className="font-semibold">{user?.name}</h2>
-            <p className="text-sm opacity-90">
-              Eket Federal Constituency Primaries
-            </p>
+            <h2 className="font-semibold">{profile.name}</h2>
+            <p className="text-sm opacity-90">{profile.lga}</p>
           </div>
         </div>
 
-        {/* TABS */}
         <div className="grid grid-cols-2 mt-6 px-5">
-
-          {/* ACTIVE */}
           <div className="relative">
             <div className="bg-[#E03A3E] text-white py-3 text-center font-semibold rounded-l-lg">
               Upload Results
             </div>
-
             <div className="absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[10px] border-l-transparent border-r-transparent border-t-[#E03A3E]" />
           </div>
 
-          {/* INACTIVE */}
           <button
             onClick={() => router.push("/report-incident")}
             className="bg-[#2DBE6C] text-white py-3 text-center font-semibold rounded-r-lg hover:opacity-90"
@@ -134,23 +153,16 @@ export default function UploadResults() {
           </button>
         </div>
 
-        {/* FORM */}
         <div className="px-6 mt-10 space-y-6">
+          <p className="text-center text-gray-600">Upload Results Below</p>
 
-          <p className="text-center text-gray-600">
-            Upload Results Below
-          </p>
-
-          {/* ROWS */}
           {[
             { key: "judith", label: "Judith Mayen Ogbara" },
             { key: "eunice", label: "Eunice Thomas" },
             { key: "okpolupm", label: "Okpolupm Etteh" },
           ].map((item) => (
             <div key={item.key} className="flex items-center gap-4">
-              <span className="w-40 text-sm font-medium">
-                {item.label}
-              </span>
+              <span className="w-40 text-sm font-medium">{item.label}</span>
 
               <input
                 type="number"
@@ -166,7 +178,6 @@ export default function UploadResults() {
             </div>
           ))}
 
-          {/* SUBMIT */}
           <button
             onClick={handleSubmit}
             disabled={loading}
@@ -180,11 +191,9 @@ export default function UploadResults() {
           </button>
         </div>
 
-        {/* FOOTER */}
         <div className="flex justify-center mt-10 pb-6">
-          <img src="/logo.png" className="w-28" />
+          <img src="/logo.png" className="w-28" alt="Judified logo" />
         </div>
-
       </div>
     </div>
   )

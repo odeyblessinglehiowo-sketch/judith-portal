@@ -11,24 +11,50 @@ declare global {
   }
 }
 
+type Profile = {
+  id: string
+  email: string
+  name: string
+  constituency: string
+  lga: string
+  image: string | null
+  role: string
+}
+
 export default function ReportIncident() {
   const router = useRouter()
 
-  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [activeType, setActiveType] = useState("video")
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
   const [comment, setComment] = useState("")
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user")
+    const loadProfile = async () => {
+      const { data: authData, error: authError } = await supabase.auth.getUser()
 
-    if (!storedUser) {
-      router.push("/login")
-      return
+      if (authError || !authData.user) {
+        router.push("/login")
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (error || !data) {
+        toast.error("Profile not found")
+        router.push("/login")
+        return
+      }
+
+      setProfile(data as Profile)
     }
 
-    setUser(JSON.parse(storedUser))
+    loadProfile()
   }, [router])
 
   const openUploadWidget = () => {
@@ -53,6 +79,7 @@ export default function ReportIncident() {
         resourceType: "auto",
         folder: "reports",
         maxFileSize: 100000000,
+        maxChunkSize: 10000000,
         clientAllowedFormats: [
           "jpg",
           "jpeg",
@@ -97,7 +124,7 @@ export default function ReportIncident() {
       return
     }
 
-    if (!user?.email) {
+    if (!profile?.email) {
       toast.error("User not found")
       return
     }
@@ -107,7 +134,7 @@ export default function ReportIncident() {
     try {
       const { error } = await supabase.from("reports").insert([
         {
-          user_email: user.email,
+          user_email: profile.email,
           type: activeType,
           comment: comment.trim(),
           files: activeType === "text" ? [] : uploadedFiles,
@@ -133,7 +160,7 @@ export default function ReportIncident() {
     }
   }
 
-  if (!user) return null
+  if (!profile) return null
 
   return (
     <div className="relative min-h-screen bg-[#f5f7f6] overflow-hidden">
@@ -145,18 +172,20 @@ export default function ReportIncident() {
 
       <div className="relative z-10 max-w-5xl mx-auto w-full">
         <div className="px-5 pt-6 relative">
-          <img
-            src={user?.image || "/default-avatar.png"}
-            className="w-16 h-16 rounded-full border-4 border-white shadow-lg absolute -top-4 left-5 object-cover"
-            alt="Agent"
-          />
+          {profile.image ? (
+            <img
+              src={profile.image}
+              className="w-16 h-16 rounded-full border-4 border-white shadow-lg absolute -top-4 left-5 object-cover"
+              alt="Agent"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full border-4 border-white shadow-lg absolute -top-4 left-5 bg-gray-200" />
+          )}
 
           <div className="bg-[#0087C8] text-white rounded-xl pt-10 pb-4 px-4 shadow-md">
             <p className="text-sm">Welcome</p>
-            <h2 className="font-semibold">{user?.name}</h2>
-            <p className="text-sm opacity-90">
-              Eket Federal Constituency Primaries
-            </p>
+            <h2 className="font-semibold">{profile.name}</h2>
+            <p className="text-sm opacity-90">{profile.lga}</p>
           </div>
         </div>
 
@@ -218,7 +247,11 @@ export default function ReportIncident() {
           )}
 
           <textarea
-            placeholder={activeType === "text" ? "Write your report..." : "Add incident report..."}
+            placeholder={
+              activeType === "text"
+                ? "Write your report..."
+                : "Add incident report..."
+            }
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             className="w-full mt-4 p-4 bg-[#dbe7f3] rounded-lg min-h-[140px] outline-none"

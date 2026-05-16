@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { users } from "@/lib/auth"
+import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+
 export default function LoginPage() {
   const router = useRouter()
 
@@ -11,35 +12,65 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = () => {
-    if (!email || !password) {
-     toast.error("Enter email and password")
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      toast.error("Enter email and password")
       return
     }
 
     setLoading(true)
 
-    const user = users.find(
-      (u) => u.email === email && u.password === password
-    )
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      })
 
-    if (!user) {
-      alert("Invalid login credentials")
-      setLoading(false)
-      return
+      if (error) {
+        toast.error("Invalid login credentials")
+        setLoading(false)
+        return
+      }
+
+      if (!data.user) {
+        toast.error("Login failed")
+        setLoading(false)
+        return
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", data.user.id)
+        .single()
+
+      if (profileError) {
+        toast.error("Profile not found")
+        setLoading(false)
+        return
+      }
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          id: data.user.id,
+          email: data.user.email,
+          ...profile,
+        })
+      )
+
+      toast.success("Login successful")
+      router.push("/dashboard")
+    } catch (err) {
+      console.error(err)
+      toast.error("Something went wrong")
     }
 
-    // save user to localStorage
-    localStorage.setItem("user", JSON.stringify(user))
-
     setLoading(false)
-    router.push("/dashboard")
   }
 
   return (
     <div className="relative min-h-screen bg-white overflow-hidden flex items-center justify-center">
-
-      {/* BACKGROUND */}
       <div
         className="
           absolute top-0 left-0 w-full 
@@ -55,24 +86,18 @@ export default function LoginPage() {
         style={{ backgroundImage: "url('/bg.png')" }}
       />
 
-      {/* WHITE CURVE */}
       <div className="absolute top-[45%] left-0 w-full h-[60%] bg-white rounded-t-[60px]" />
 
-      {/* CONTENT */}
       <div className="relative z-10 w-full max-w-md flex flex-col items-center px-6 py-10">
+        <img src="/logo.png" className="w-20 mb-6" alt="Logo" />
 
-        {/* LOGO */}
-        <img src="/logo.png" className="w-20 mb-6" />
-
-        {/* CARD */}
         <div className="bg-white rounded-3xl px-6 py-6 mb-8 shadow-lg w-full text-center">
-          <img src="/judith2027.png" className="w-40 mx-auto mb-4" />
+          <img src="/judith2027.png" className="w-40 mx-auto mb-4" alt="Judith 2027" />
 
           <h2 className="text-lg font-semibold text-gray-700 mb-4">
             Ward Agent Login
           </h2>
 
-          {/* EMAIL */}
           <input
             type="email"
             placeholder="Email"
@@ -87,7 +112,6 @@ export default function LoginPage() {
             "
           />
 
-          {/* PASSWORD */}
           <input
             type="password"
             placeholder="Password"
@@ -102,18 +126,18 @@ export default function LoginPage() {
             "
           />
 
-          {/* BUTTON */}
           <button
             onClick={handleLogin}
+            disabled={loading}
             className="
               w-full bg-[#2DBE6C] text-white py-3 rounded-lg font-semibold
               hover:scale-[1.02] active:scale-[0.97] transition
+              disabled:opacity-60
             "
           >
             {loading ? "Logging in..." : "Login"}
           </button>
         </div>
-
       </div>
     </div>
   )
